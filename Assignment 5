@@ -1,0 +1,357 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct gridNode{
+    int *boardState;
+    int move;
+    struct gridNode *parent, *next;
+}GridNode;
+
+typedef struct queueNode{
+    GridNode *boardNode;
+    struct queueNode *next;
+}QueueNode;
+
+typedef struct openHashTable{
+    int size;
+    GridNode **table;
+}OpenHashTable;
+
+typedef struct queue{
+    QueueNode *front, *rear;
+    QueueNode *items;
+}Queue;
+
+
+GridNode *initializeNode(int *board, int boardSize, int move, GridNode *parent, GridNode *next){
+    GridNode *node = malloc(sizeof(GridNode));
+    node->boardState = malloc(boardSize * sizeof(int));
+
+    for (int i = 0; i < boardSize; i++) {
+    node->boardState[i] = board[i];
+        }
+
+    node-> move = move;
+    node-> parent = parent;
+    node-> next = next;
+    return node;
+}
+
+QueueNode *initializeQueueNode(GridNode *board){
+    QueueNode *newNode = malloc(sizeof(QueueNode));
+    newNode->boardNode = board;
+    newNode->next = NULL;
+    return newNode;
+}
+
+OpenHashTable *initializeHashTable(int size){
+    OpenHashTable *hashTable = malloc(sizeof(OpenHashTable));
+    hashTable ->size = size;
+    hashTable->table = malloc(sizeof(GridNode *) * size);
+    for (int i = 0; i < size; i++)
+            hashTable->table[i] = NULL;
+    return hashTable;
+
+}
+
+int isEmpty(Queue *myQueue)
+{
+ return (myQueue->rear == -1);
+}
+
+int front(Queue *myQueue)
+{
+ if (isEmpty(myQueue))
+ {
+ printf("Queue is empty!!\n");
+ exit(-1);
+ }
+ //else
+ //return myQueue->items[myQueue->front];
+}
+
+
+Queue *initializeQueue(){
+    Queue *queue = malloc(sizeof(Queue));
+    queue->front = queue->rear= NULL;
+    return queue;
+}
+
+void enqueue(Queue *queue, GridNode *board){
+        QueueNode *queueNode = initializeQueueNode(board);
+    if(queue->front == NULL)
+        queue->front = queue->rear = queueNode;
+        queue->rear->next = queueNode;
+        queue->rear = queueNode;
+}
+
+GridNode *dequeue(Queue *queue){
+    GridNode *head = queue->front->boardNode;
+    queue->front= queue->front->next;
+    if(queue->front == NULL)
+        queue->rear = NULL;
+    return head;
+}
+
+unsigned long hash(int *board,int boardSize, int tableSize){
+    unsigned long total = 0;
+    unsigned long number = 1;
+
+    for (int i = 0; i < boardSize; i++){
+        total += board[i] * number;
+        number *= 101;
+
+    }
+    return total % tableSize;
+}
+
+void insert(OpenHashTable *hashTable, Queue *queue, int *board, int boardSize, GridNode *parent, int move){
+    unsigned long position = hash(board, boardSize, hashTable->size);
+    GridNode *ptr = hashTable->table[position];
+    while(ptr != NULL){
+        if (checkBoard(ptr->boardState, board, boardSize) == 0)
+            return;
+        else
+            ptr=ptr->next;
+    }
+
+    GridNode *newNode = initializeNode(board,boardSize, move, parent, hashTable->table[position]);
+    hashTable->table[position] = newNode;
+    enqueue(queue, newNode);
+
+}
+
+int checkBoard(int *firstBoard, int *secondBoard, int boardSizes){
+        for(int i = 0; i<boardSizes; i++)
+                if(secondBoard[i] != firstBoard[i])
+                        return 1;
+        return 0;
+
+}
+
+int solvable(int *grid, int side) {
+    int totalInversions = 0;
+    int zeroIndex = -1;
+    int size = side * side;
+
+    if (side % 2 == 0) {
+        for (int i = 0; i < size; i++) {
+            if (grid[i] == 0) {
+                zeroIndex = i / side;
+                break;
+            }
+        }
+
+        for (int i = 0; i < size; i++) {
+            if (grid[i] == 0) continue;
+
+            for (int j = i + 1; j < size; j++) {
+                if (grid[j] == 0) continue;
+                if (grid[i] > grid[j]) {
+                    totalInversions++;
+                }
+            }
+        }
+
+        return ((totalInversions + zeroIndex) % 2 == 1);
+    } else {
+        for (int i = 0; i < size; i++) {
+            if (grid[i] == 0) continue;
+
+            for (int j = i + 1; j < size; j++) {
+                if (grid[j] == 0) continue;
+                if (grid[i] > grid[j]) {
+                    totalInversions++;
+                }
+            }
+        }
+
+        return (totalInversions % 2 == 0);
+    }
+}
+
+int checkAnswer(GridNode *board, int boardSize){
+    for(int i = 0; i<boardSize - 1; i++){
+        if(board->boardState[i] != i+1){
+            return 0;
+        }
+    }
+    return 1;
+
+}
+
+
+void swap(int *board, int one, int two)
+{
+        int temp = board[one];
+        board[one] = board[two];
+        board[two] = temp;
+}
+
+
+void printAnswer(GridNode *answerNode, FILE *fp_out){
+    int moves[101];
+    int i = 0;
+    GridNode *currentNode = answerNode;
+    while(currentNode->parent != NULL){
+        moves[i++] = currentNode->move;
+        currentNode = currentNode->parent;
+    }
+    fprintf(fp_out, "#moves\n");
+    for(int j = i-1; j>=0; j--)
+        fprintf(fp_out, "%d ", moves[j]);
+    fprintf(fp_out, "\n");
+}
+
+
+void createGrid(OpenHashTable *hashTable, Queue *queue, GridNode *parent, int *board, int k, int zeroIndex, int moveRow, int moveColumn) {
+
+    int newBoard[k * k];
+    int moveIndex = (moveRow * k) + moveColumn;
+    int move = board[moveIndex];
+
+    for (int i = 0; i < k * k; i++) {
+        newBoard[i] = board[i];
+    }
+
+    newBoard[zeroIndex] = board[moveIndex];
+    newBoard[moveIndex] = board[zeroIndex];
+
+    insert(hashTable, queue, newBoard, k * k, parent, move);
+}
+
+
+
+void whereISZERO(int *board, int k, int *zeroRow, int *zeroColumn) {
+    for (int row = 0; row < k; row++) {
+        for (int col = 0; col < k; col++) {
+            if (board[row * k + col] == 0) {
+                *zeroRow = row;
+                *zeroColumn = col;
+                return;
+            }
+        }
+    }
+}
+
+
+void moveUp(OpenHashTable *hashTable, Queue *queue, GridNode *parent, int *board, int k, int zeroRow, int zeroColumn) {
+    if (zeroRow - 1 >= 0) {
+        int zeroIndex = zeroRow * k + zeroColumn;
+        createGrid(hashTable, queue, parent, board, k, zeroIndex, zeroRow - 1, zeroColumn);
+    }
+}
+
+
+void moveDown(OpenHashTable *hashTable, Queue *queue, GridNode *parent, int *board, int k, int zeroRow, int zeroColumn) {
+    if (zeroRow + 1 < k) {
+        int zeroIndex = zeroRow * k + zeroColumn;
+        createGrid(hashTable, queue, parent, board, k, zeroIndex, zeroRow + 1, zeroColumn);
+    }
+}
+
+
+void moveLeft(OpenHashTable *hashTable, Queue *queue, GridNode *parent, int *board, int k, int zeroRow, int zeroColumn) {
+    if (zeroColumn - 1 >= 0) {
+        int zeroIndex = zeroRow * k + zeroColumn;
+        createGrid(hashTable, queue, parent, board, k, zeroIndex, zeroRow, zeroColumn - 1);
+    }
+}
+
+
+void moveRight(OpenHashTable *hashTable, Queue *queue, GridNode *parent, int *board, int k, int zeroRow, int zeroColumn) {
+    if (zeroColumn + 1 < k) {
+        int zeroIndex = zeroRow * k + zeroColumn;
+        createGrid(hashTable, queue, parent, board, k, zeroIndex, zeroRow, zeroColumn + 1);
+    }
+}
+
+void moveTiles(OpenHashTable *hashTable, Queue *queue, GridNode *parent, int k) {
+    int *board = parent->boardState;
+    int zeroRow, zeroColumn;
+
+    whereISZERO(board, k, &zeroRow, &zeroColumn);
+
+    moveUp(hashTable, queue, parent, board, k, zeroRow, zeroColumn);
+    moveDown(hashTable, queue, parent, board, k, zeroRow, zeroColumn);
+    moveLeft(hashTable, queue, parent, board, k, zeroRow, zeroColumn);
+    moveRight(hashTable, queue, parent, board, k, zeroRow, zeroColumn);
+}
+
+
+void freeTable(OpenHashTable *hashTable){
+      for(int i = 0; i < hashTable->size; i++){
+        GridNode *ptr = hashTable->table[i];
+        while(ptr != NULL){
+            free(ptr);
+            ptr=ptr->next;
+        }
+    }
+    free(hashTable);
+
+  }
+
+int main(int argc, char **argv)
+{
+        FILE *fp_in,*fp_out;
+
+        fp_in = fopen(argv[1], "r");
+        if (fp_in == NULL){
+                printf("Could not open a file.\n");
+                return -1;
+        }
+
+        fp_out = fopen(argv[2], "w");
+        if (fp_out == NULL){
+                printf("Could not open a file.\n");
+                return -1;
+        }
+
+        char *line = NULL;
+        size_t lineBuffSize = 0;
+        ssize_t lineSize;
+        int k;
+        int boardSize;
+
+        getline(&line,&lineBuffSize,fp_in);//ignore the first line in file, which is a comment
+        fscanf(fp_in,"%d\n",&k);//read size of the board
+        //printf("k = %d\n", k); //make sure you read k properly for DEBUG purposes
+        getline(&line,&lineBuffSize,fp_in);//ignore the second line in file, which is a comment
+
+        int initial_board[k*k];//get kxk memory to hold the initial board
+        for(int i=0;i<k*k;i++)
+                fscanf(fp_in,"%d ",&initial_board[i]);
+        //printBoard(initial_board, k);//Assuming that I have a function to print the board, print it here to make sure I read the input board properly for DEBUG purposes
+        fclose(fp_in);
+
+        ////////////////////
+        // do the rest to solve the puzzle
+        ////////////////////
+
+        boardSize = k*k;
+        if(solvable(initial_board, k) == 0){
+        fprintf(fp_out, "#moves\n");
+        fprintf(fp_out, "no solution\n");
+        return 0;
+    }else{
+    OpenHashTable *myHashTable = initializeHashTable(1001);
+    Queue *BFSQueue = initializeQueue();
+    insert(myHashTable, BFSQueue, initial_board, boardSize, NULL, -1);
+    while(1){
+        GridNode *node = dequeue(BFSQueue);
+        if(checkAnswer(node, boardSize) == 1){
+            printAnswer(node, fp_out);
+            break;
+        }else{
+            moveTiles(myHashTable, BFSQueue, node, k);
+        }
+
+
+
+    }
+
+    fclose(fp_out);
+    return 0;
+}
+}
